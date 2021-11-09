@@ -1,0 +1,14 @@
+{
+  "name": "deepspeech",
+  "version": "0.0.1",
+  "displayName": "DeepSpeech",
+  "description": "DeepSpeech Unity Package Manager package.",
+  "unity": "2020.3",
+  "author": {
+    "name": "Florian Spiess",
+    "email": "florian.spiess@unibas.ch"
+  },
+  "dependencies": {
+    "com.unity.inputsystem": "1.0.2"
+  }
+}
