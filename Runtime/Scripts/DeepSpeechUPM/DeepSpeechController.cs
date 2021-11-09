@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using DeepSpeechClient.Interfaces;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace DeepSpeechUPM
 {
@@ -12,7 +11,7 @@ namespace DeepSpeechUPM
   /// </summary>
   public class DeepSpeechController : MonoBehaviour
   {
-    public InputAction dictateAction;
+    public DeepSpeechResultEvent onResult;
 
     /// <summary>
     /// The size in seconds for the microphone recording buffer.
@@ -34,9 +33,6 @@ namespace DeepSpeechUPM
       _sttClient =
         new DeepSpeechClient.DeepSpeech(Application.dataPath + "/Resources/DeepSpeech/deepspeech-0.9.3-models.pbmm");
       _modelSampleRate = _sttClient.GetModelSampleRate();
-
-      dictateAction.performed += SetDictation;
-      dictateAction.canceled += SetDictation;
     }
 
     private void Update()
@@ -59,29 +55,7 @@ namespace DeepSpeechUPM
       }
     }
 
-    private void OnEnable()
-    {
-      dictateAction.Enable();
-    }
-
-    private void OnDisable()
-    {
-      dictateAction.Disable();
-    }
-
-    public void SetDictation(InputAction.CallbackContext context)
-    {
-      if (context.performed)
-      {
-        StartRecording();
-      }
-      else
-      {
-        StopRecording();
-      }
-    }
-
-    private void StartRecording()
+    public void StartDictation()
     {
       if (_recording)
       {
@@ -91,11 +65,10 @@ namespace DeepSpeechUPM
 
       _recording = true;
       _previousPosition = 0;
-      Debug.Log("Start recording");
       _clipBuffer = Microphone.Start(null, true, BufferLength, _modelSampleRate);
     }
 
-    private void StopRecording()
+    public void StopDictation()
     {
       if (!_recording)
       {
@@ -104,7 +77,6 @@ namespace DeepSpeechUPM
       }
 
       _recording = false;
-      Debug.Log("Stop recording");
       var position = Microphone.GetPosition(null);
 
       var samples = _clipBuffer.samples;
@@ -119,9 +91,8 @@ namespace DeepSpeechUPM
       // Rescale to short
       var shortData = _buffer.Select(value => (short) (value * short.MaxValue)).ToArray();
 
-      Debug.Log("Running inference....");
       var speechResult = _sttClient.SpeechToText(shortData, Convert.ToUInt32(shortData.Length));
-      Debug.Log(speechResult);
+      onResult.Invoke(speechResult);
 
       _buffer.Clear();
     }

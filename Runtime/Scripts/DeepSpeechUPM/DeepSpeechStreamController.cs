@@ -3,7 +3,6 @@ using System.Linq;
 using DeepSpeechClient.Interfaces;
 using DeepSpeechClient.Models;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace DeepSpeechUPM
 {
@@ -12,7 +11,8 @@ namespace DeepSpeechUPM
   /// </summary>
   public class DeepSpeechStreamController : MonoBehaviour
   {
-    public InputAction dictateAction;
+    public DeepSpeechResultEvent onResult;
+    public DeepSpeechPredictionEvent onPrediction;
 
     /// <summary>
     /// The size in seconds for the microphone recording buffer.
@@ -33,9 +33,6 @@ namespace DeepSpeechUPM
       _sttClient =
         new DeepSpeechClient.DeepSpeech(Application.dataPath + "/Resources/DeepSpeech/deepspeech-0.9.3-models.pbmm");
       _modelSampleRate = _sttClient.GetModelSampleRate();
-
-      dictateAction.performed += SetDictation;
-      dictateAction.canceled += SetDictation;
     }
 
     private void Update()
@@ -58,33 +55,11 @@ namespace DeepSpeechUPM
         var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
         _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
         var currentPrediction = _sttClient.IntermediateDecode(_sttStream);
-        Debug.Log(currentPrediction);
+        onPrediction.Invoke(currentPrediction);
       }
     }
 
-    private void OnEnable()
-    {
-      dictateAction.Enable();
-    }
-
-    private void OnDisable()
-    {
-      dictateAction.Disable();
-    }
-
-    public void SetDictation(InputAction.CallbackContext context)
-    {
-      if (context.performed)
-      {
-        StartRecording();
-      }
-      else
-      {
-        StopRecording();
-      }
-    }
-
-    private void StartRecording()
+    public void StartDictation()
     {
       if (_recording)
       {
@@ -94,13 +69,12 @@ namespace DeepSpeechUPM
 
       _recording = true;
       _previousPosition = 0;
-      Debug.Log("Start recording");
       _clipBuffer = Microphone.Start(null, true, BufferLength, _modelSampleRate);
 
       _sttStream = _sttClient.CreateStream();
     }
 
-    private void StopRecording()
+    public void StopDictation()
     {
       if (!_recording)
       {
@@ -109,7 +83,6 @@ namespace DeepSpeechUPM
       }
 
       _recording = false;
-      Debug.Log("Stop recording");
       var position = Microphone.GetPosition(null);
 
       var samples = _clipBuffer.samples;
@@ -123,9 +96,10 @@ namespace DeepSpeechUPM
       var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
       _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
       var speechResult = _sttClient.FinishStream(_sttStream);
-      Debug.Log(speechResult);
+      onResult.Invoke(speechResult);
 
       _sttStream = null;
+      _clipBuffer = null;
     }
   }
 }
