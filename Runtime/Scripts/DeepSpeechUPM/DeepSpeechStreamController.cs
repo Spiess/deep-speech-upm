@@ -1,16 +1,16 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using DeepSpeechClient.Interfaces;
+using DeepSpeechClient.Models;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace DeepSpeechUPM
 {
   /// <summary>
-  /// Controller class for single shot speech-to-text with DeepSpeech.
+  /// Controller class for continuous stream-based speech-to-text with DeepSpeech.
   /// </summary>
-  public class DeepSpeechController : MonoBehaviour
+  public class DeepSpeechStreamController : MonoBehaviour
   {
     public InputAction dictateAction;
 
@@ -22,12 +22,11 @@ namespace DeepSpeechUPM
     private const float BufferRatio = 0.5f;
 
     private IDeepSpeech _sttClient;
+    private DeepSpeechStream _sttStream;
     private int _modelSampleRate;
     private AudioClip _clipBuffer;
     private bool _recording;
     private int _previousPosition;
-
-    private List<float> _buffer = new List<float>();
 
     private void Start()
     {
@@ -54,8 +53,12 @@ namespace DeepSpeechUPM
         var data = new float[sampleDifference];
 
         _clipBuffer.GetData(data, position);
-        _buffer.AddRange(data);
         _previousPosition = position;
+
+        var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
+        _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
+        var currentPrediction = _sttClient.IntermediateDecode(_sttStream);
+        Debug.Log(currentPrediction);
       }
     }
 
@@ -93,6 +96,8 @@ namespace DeepSpeechUPM
       _previousPosition = 0;
       Debug.Log("Start recording");
       _clipBuffer = Microphone.Start(null, true, BufferLength, _modelSampleRate);
+
+      _sttStream = _sttClient.CreateStream();
     }
 
     private void StopRecording()
@@ -112,18 +117,15 @@ namespace DeepSpeechUPM
       var data = new float[sampleDifference];
 
       _clipBuffer.GetData(data, position);
-      _buffer.AddRange(data);
 
       Microphone.End(null);
 
-      // Rescale to short
-      var shortData = _buffer.Select(value => (short) (value * short.MaxValue)).ToArray();
-
-      Debug.Log("Running inference....");
-      var speechResult = _sttClient.SpeechToText(shortData, Convert.ToUInt32(shortData.Length));
+      var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
+      _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
+      var speechResult = _sttClient.FinishStream(_sttStream);
       Debug.Log(speechResult);
 
-      _buffer.Clear();
+      _sttStream = null;
     }
   }
 }
