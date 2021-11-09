@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using DeepSpeechClient.Interfaces;
 using DeepSpeechClient.Models;
 using UnityEngine;
@@ -28,6 +30,11 @@ namespace DeepSpeechUPM
     private bool _recording;
     private int _previousPosition;
 
+    /// <summary>
+    /// Lock to prevent the DeepSpeech client from being used simultaneously and crashing.
+    /// </summary>
+    private readonly SemaphoreSlim _sttLock = new SemaphoreSlim(1, 1);
+
     private void Start()
     {
       _sttClient =
@@ -35,7 +42,7 @@ namespace DeepSpeechUPM
       _modelSampleRate = _sttClient.GetModelSampleRate();
     }
 
-    private void Update()
+    private async void Update()
     {
       if (!_recording) return;
 
@@ -53,9 +60,15 @@ namespace DeepSpeechUPM
         _previousPosition = position;
 
         var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
-        _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
-        var currentPrediction = _sttClient.IntermediateDecode(_sttStream);
+        await _sttLock.WaitAsync();
+        var currentPrediction = await Task.Run(() =>
+        {
+          _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
+          return _sttClient.IntermediateDecode(_sttStream);
+        });
+
         onPrediction.Invoke(currentPrediction);
+        _sttLock.Release();
       }
     }
 
@@ -74,7 +87,7 @@ namespace DeepSpeechUPM
       _sttStream = _sttClient.CreateStream();
     }
 
-    public void StopDictation()
+    public async void StopDictation()
     {
       if (!_recording)
       {
@@ -94,9 +107,19 @@ namespace DeepSpeechUPM
       Microphone.End(null);
 
       var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
-      _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
-      var speechResult = _sttClient.FinishStream(_sttStream);
+
+      await _sttLock.WaitAsync();
+      var speechResult = await Task.Run(() =>
+      {
+        if (shortData.Length > 0)
+        {
+          _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
+        }
+
+        return _sttClient.FinishStream(_sttStream);
+      });
       onResult.Invoke(speechResult);
+      _sttLock.Release();
 
       _sttStream = null;
       _clipBuffer = null;
