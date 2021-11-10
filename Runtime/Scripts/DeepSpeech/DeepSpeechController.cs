@@ -28,14 +28,14 @@ namespace DeepSpeech
 
     private List<float> _buffer = new List<float>();
 
-    private void Start()
+    protected void Start()
     {
       _sttClient =
         new DeepSpeechClient.DeepSpeech(Application.dataPath + "/Resources/DeepSpeech/deepspeech-0.9.3-models.pbmm");
       _modelSampleRate = _sttClient.GetModelSampleRate();
     }
 
-    private void Update()
+    protected void Update()
     {
       if (!_recording) return;
 

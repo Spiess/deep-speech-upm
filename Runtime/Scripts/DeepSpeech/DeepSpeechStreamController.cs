@@ -35,14 +35,14 @@ namespace DeepSpeech
     /// </summary>
     private readonly SemaphoreSlim _sttLock = new SemaphoreSlim(1, 1);
 
-    private void Start()
+    protected void Start()
     {
       _sttClient =
         new DeepSpeechClient.DeepSpeech(Application.dataPath + "/Resources/DeepSpeech/deepspeech-0.9.3-models.pbmm");
       _modelSampleRate = _sttClient.GetModelSampleRate();
     }
 
-    private async void Update()
+    protected async void Update()
     {
       if (!_recording) return;
 
