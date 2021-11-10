@@ -2,7 +2,7 @@
   "name": "deepspeech",
   "version": "0.0.1",
   "displayName": "DeepSpeech",
-  "description": "DeepSpeech Unity Package Manager package.",
+  "description": "DeepSpeech Unity Package Manager package for easy on-device speech-to-text.",
   "unity": "2020.3",
   "author": {
     "name": "Florian Spiess",

@@ -1,7 +1,7 @@
 using System;
 using UnityEngine.Events;
 
-namespace DeepSpeechUPM
+namespace DeepSpeech
 {
   /// <summary>
   /// DeepSpeech event providing a final speech-to-text result.

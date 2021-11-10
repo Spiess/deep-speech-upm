@@ -1,20 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using DeepSpeechClient.Interfaces;
-using DeepSpeechClient.Models;
 using UnityEngine;
 
-namespace DeepSpeechUPM
+namespace DeepSpeech
 {
   /// <summary>
-  /// Controller class for continuous stream-based speech-to-text with DeepSpeech.
+  /// Controller class for single shot speech-to-text with DeepSpeech.
   /// </summary>
-  public class DeepSpeechStreamController : MonoBehaviour
+  public class DeepSpeechController : MonoBehaviour
   {
     public DeepSpeechResultEvent onResult;
-    public DeepSpeechPredictionEvent onPrediction;
 
     /// <summary>
     /// The size in seconds for the microphone recording buffer.
@@ -24,16 +21,12 @@ namespace DeepSpeechUPM
     private const float BufferRatio = 0.5f;
 
     private IDeepSpeech _sttClient;
-    private DeepSpeechStream _sttStream;
     private int _modelSampleRate;
     private AudioClip _clipBuffer;
     private bool _recording;
     private int _previousPosition;
 
-    /// <summary>
-    /// Lock to prevent the DeepSpeech client from being used simultaneously and crashing.
-    /// </summary>
-    private readonly SemaphoreSlim _sttLock = new SemaphoreSlim(1, 1);
+    private List<float> _buffer = new List<float>();
 
     private void Start()
     {
@@ -42,7 +35,7 @@ namespace DeepSpeechUPM
       _modelSampleRate = _sttClient.GetModelSampleRate();
     }
 
-    private async void Update()
+    private void Update()
     {
       if (!_recording) return;
 
@@ -57,18 +50,8 @@ namespace DeepSpeechUPM
         var data = new float[sampleDifference];
 
         _clipBuffer.GetData(data, position);
+        _buffer.AddRange(data);
         _previousPosition = position;
-
-        var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
-        await _sttLock.WaitAsync();
-        var currentPrediction = await Task.Run(() =>
-        {
-          _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
-          return _sttClient.IntermediateDecode(_sttStream);
-        });
-
-        onPrediction.Invoke(currentPrediction);
-        _sttLock.Release();
       }
     }
 
@@ -83,11 +66,9 @@ namespace DeepSpeechUPM
       _recording = true;
       _previousPosition = 0;
       _clipBuffer = Microphone.Start(null, true, BufferLength, _modelSampleRate);
-
-      _sttStream = _sttClient.CreateStream();
     }
 
-    public async void StopDictation()
+    public void StopDictation()
     {
       if (!_recording)
       {
@@ -103,26 +84,17 @@ namespace DeepSpeechUPM
       var data = new float[sampleDifference];
 
       _clipBuffer.GetData(data, position);
+      _buffer.AddRange(data);
 
       Microphone.End(null);
 
-      var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
+      // Rescale to short
+      var shortData = _buffer.Select(value => (short) (value * short.MaxValue)).ToArray();
 
-      await _sttLock.WaitAsync();
-      var speechResult = await Task.Run(() =>
-      {
-        if (shortData.Length > 0)
-        {
-          _sttClient.FeedAudioContent(_sttStream, shortData, Convert.ToUInt32(shortData.Length));
-        }
-
-        return _sttClient.FinishStream(_sttStream);
-      });
+      var speechResult = _sttClient.SpeechToText(shortData, Convert.ToUInt32(shortData.Length));
       onResult.Invoke(speechResult);
-      _sttLock.Release();
 
-      _sttStream = null;
-      _clipBuffer = null;
+      _buffer.Clear();
     }
   }
 }
