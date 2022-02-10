@@ -59,7 +59,7 @@ namespace DeepSpeech
         _clipBuffer.GetData(data, position);
         _previousPosition = position;
 
-        var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
+        var shortData = data.Select(value => (short)(value * short.MaxValue)).ToArray();
         await _sttLock.WaitAsync();
         var currentPrediction = await Task.Run(() =>
         {
@@ -72,7 +72,7 @@ namespace DeepSpeech
       }
     }
 
-    public void StartDictation()
+    public async void StartDictation()
     {
       if (_recording)
       {
@@ -84,7 +84,9 @@ namespace DeepSpeech
       _previousPosition = 0;
       _clipBuffer = Microphone.Start(null, true, BufferLength, _modelSampleRate);
 
-      _sttStream = _sttClient.CreateStream();
+      await _sttLock.WaitAsync();
+      _sttStream = await Task.Run(() => _sttClient.CreateStream());
+      _sttLock.Release();
     }
 
     public async void StopDictation()
@@ -106,7 +108,7 @@ namespace DeepSpeech
 
       Microphone.End(null);
 
-      var shortData = data.Select(value => (short) (value * short.MaxValue)).ToArray();
+      var shortData = data.Select(value => (short)(value * short.MaxValue)).ToArray();
 
       await _sttLock.WaitAsync();
       var speechResult = await Task.Run(() =>
